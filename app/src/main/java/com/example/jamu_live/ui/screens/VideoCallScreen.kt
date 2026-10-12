@@ -1,5 +1,6 @@
 package com.example.jamu_live.ui.screens
 
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -203,6 +204,14 @@ fun ActiveVideoCallView(
     var remoteUid by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(inCallState) {
+        // Unbind CameraX so Agora RTC Engine gets exclusive access to camera hardware
+        try {
+            val cameraProvider = ProcessCameraProvider.getInstance(context).get()
+            cameraProvider.unbindAll()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         val agora = AgoraManager.instance
         agora.init(context, AgoraManager.AGORA_APP_ID)
 
