@@ -213,7 +213,7 @@ fun ActiveVideoCallView(
             remoteUid = 0
         }
 
-        val myUid = Math.abs(currentUserId.hashCode())
+        val myUid = (Math.abs(currentUserId.hashCode()) % 900000) + 10000
         val channelName = "jamu_call_${minOf(currentUserId, peer.id)}_${maxOf(currentUserId, peer.id)}"
         agora.joinChannel(channelName, myUid)
     }
@@ -279,7 +279,7 @@ fun ActiveVideoCallView(
                                 .padding(horizontal = 12.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = "Kutilmoqda...",
+                                text = "Ulanyapti...",
                                 color = Color(0xFF4CAF50),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
@@ -370,7 +370,7 @@ fun ActiveVideoCallView(
             }
         }
 
-        // Floating Picture-In-Picture (PiP) Window -> Local Camera
+        // Floating Picture-In-Picture (PiP) Window -> Local Camera View
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -380,7 +380,7 @@ fun ActiveVideoCallView(
                 .border(2.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(16.dp))
                 .background(Color.Black)
         ) {
-            if (inCallState.isCameraOn) {
+            if (inCallState.isCameraOn && remoteUid != 0) {
                 AgoraLocalVideoView(modifier = Modifier.fillMaxSize())
             } else {
                 Box(
@@ -398,8 +398,8 @@ fun ActiveVideoCallView(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Kamera O'chiq",
-                            color = Color.Gray,
+                            text = if (remoteUid != 0) "Jonli" else "Kutmoqda",
+                            color = Color(0xFF4CAF50),
                             fontSize = 10.sp
                         )
                     }

@@ -24,6 +24,16 @@ class AgoraManager private constructor() {
             onUserJoinedCallback?.invoke(uid)
         }
 
+        override fun onFirstRemoteVideoFrame(uid: Int, width: Int, height: Int, elapsed: Int) {
+            remoteUid = uid
+            onUserJoinedCallback?.invoke(uid)
+        }
+
+        override fun onFirstRemoteVideoDecoded(uid: Int, width: Int, height: Int, elapsed: Int) {
+            remoteUid = uid
+            onUserJoinedCallback?.invoke(uid)
+        }
+
         override fun onUserOffline(uid: Int, reason: Int) {
             if (remoteUid == uid) {
                 remoteUid = 0
@@ -46,8 +56,11 @@ class AgoraManager private constructor() {
                 mChannelProfile = Constants.CHANNEL_PROFILE_COMMUNICATION
             }
             rtcEngine = RtcEngine.create(config)
+            rtcEngine?.setChannelProfile(Constants.CHANNEL_PROFILE_COMMUNICATION)
+            rtcEngine?.setClientRole(Constants.CLIENT_ROLE_BROADCASTER)
             rtcEngine?.enableVideo()
             rtcEngine?.enableAudio()
+            rtcEngine?.startPreview()
             true
         } catch (e: Exception) {
             e.printStackTrace()
@@ -66,6 +79,7 @@ class AgoraManager private constructor() {
     }
 
     fun setupRemoteVideo(context: Context, container: FrameLayout, uid: Int) {
+        if (uid <= 0) return
         container.removeAllViews()
         val surfaceView = SurfaceView(context)
         container.addView(surfaceView)
@@ -74,7 +88,13 @@ class AgoraManager private constructor() {
     }
 
     fun joinChannel(channelName: String, uid: Int) {
-        rtcEngine?.joinChannel(null, channelName, "ExtraData", uid)
+        val validUid = if (uid <= 0) (Math.abs(uid) % 900000) + 10000 else uid
+        rtcEngine?.setChannelProfile(Constants.CHANNEL_PROFILE_COMMUNICATION)
+        rtcEngine?.setClientRole(Constants.CLIENT_ROLE_BROADCASTER)
+        rtcEngine?.enableVideo()
+        rtcEngine?.enableAudio()
+        rtcEngine?.startPreview()
+        rtcEngine?.joinChannel(null, channelName, "", validUid)
     }
 
     fun switchCamera() {
