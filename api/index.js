@@ -21,9 +21,9 @@ module.exports = (req, res) => {
     const users = global.users;
     const activeCalls = global.activeCalls;
 
-    // Clean inactive users only after 30 minutes of complete inactivity
+    // Clean inactive users only after 1 hour
     Object.keys(users).forEach(id => {
-        if (now - users[id].lastSeen > 1800000) {
+        if (now - users[id].lastSeen > 3600000) {
             delete users[id];
         }
     });
@@ -99,18 +99,21 @@ module.exports = (req, res) => {
         const { userId, action } = body;
         const currentCall = activeCalls[userId];
 
-        if (!currentCall) {
-            return res.status(200).json({ success: true, message: "No active call" });
-        }
+        if (currentCall) {
+            const peerId = currentCall.peerId;
+            if (action === 'accept') {
+                activeCalls[userId].state = 'incall';
+                if (activeCalls[peerId]) activeCalls[peerId].state = 'incall';
+            } else if (action === 'decline' || action === 'end') {
+                activeCalls[userId].state = 'ended';
+                if (activeCalls[peerId]) activeCalls[peerId].state = 'ended';
 
-        const peerId = currentCall.peerId;
-
-        if (action === 'accept') {
-            activeCalls[userId].state = 'incall';
-            if (activeCalls[peerId]) activeCalls[peerId].state = 'incall';
-        } else if (action === 'decline' || action === 'end') {
-            delete activeCalls[userId];
-            if (activeCalls[peerId]) delete activeCalls[peerId];
+                // Delay cleanup
+                setTimeout(() => {
+                    delete activeCalls[userId];
+                    if (peerId) delete activeCalls[peerId];
+                }, 3000);
+            }
         }
 
         return res.status(200).json({ success: true, action });

@@ -23,18 +23,11 @@ class CallViewModel(application: Application) : AndroidViewModel(application) {
     private val sharedPrefs = application.getSharedPreferences("jamu_live_prefs", Context.MODE_PRIVATE)
     val serverRepository = VercelServerRepository()
 
-    private val defaultFriends = listOf(
-        User(id = "1", name = "Sardor", status = UserStatus.ONLINE, avatarColorHex = "#4CAF50"),
-        User(id = "2", name = "Malika", status = UserStatus.ONLINE, avatarColorHex = "#E91E63"),
-        User(id = "3", name = "Aziz", status = UserStatus.ONLINE, avatarColorHex = "#2196F3"),
-        User(id = "4", name = "Lobar", status = UserStatus.OFFLINE, avatarColorHex = "#9C27B0"),
-        User(id = "5", name = "Jasur", status = UserStatus.ONLINE, avatarColorHex = "#FF9800")
-    )
-
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
-    private val _friendsList = MutableStateFlow<List<User>>(defaultFriends)
+    // Real online friends only (no hardcoded fake friends)
+    private val _friendsList = MutableStateFlow<List<User>>(emptyList())
     val friendsList: StateFlow<List<User>> = _friendsList.asStateFlow()
 
     private val _callState = MutableStateFlow<CallState>(CallState.Idle)
@@ -47,7 +40,6 @@ class CallViewModel(application: Application) : AndroidViewModel(application) {
 
     private var timerJob: Job? = null
     private var syncJob: Job? = null
-    private var missedPollCount = 0
 
     init {
         serverRepository.baseUrl = _serverUrl.value
@@ -124,16 +116,14 @@ class CallViewModel(application: Application) : AndroidViewModel(application) {
     private fun startServerSync(user: User) {
         syncJob?.cancel()
         syncJob = viewModelScope.launch {
-            // Initial registration
+            // Initial registration on server
             serverRepository.registerUser(user)
 
             while (true) {
                 try {
                     val result = serverRepository.pollStatus(user.id)
                     if (result != null) {
-                        missedPollCount = 0
-
-                        // Merge online friends with current friends list so list is persistent
+                        // Merge real online users with user-added friends
                         val onlineFriends = result.onlineUsers.filter { it.id != user.id }
                         _friendsList.update { currentList ->
                             val mergedMap = currentList.associateBy { it.id }.toMutableMap()
@@ -165,23 +155,17 @@ class CallViewModel(application: Application) : AndroidViewModel(application) {
                                         startCallTimer()
                                     }
                                 }
-                            }
-                        } else {
-                            // Only end call if peer explicitly ended it
-                            val currentState = _callState.value
-                            if (currentState is CallState.InCall || currentState is CallState.OutgoingCalling) {
-                                _callState.value = CallState.CallEnded("Suhbatdosh muloqotni yakunladi")
-                                delay(1500)
-                                if (_callState.value is CallState.CallEnded) {
-                                    _callState.value = CallState.Idle
+                                "ended" -> {
+                                    val current = _callState.value
+                                    if (current !is CallState.Idle && current !is CallState.CallEnded) {
+                                        _callState.value = CallState.CallEnded("Suhbatdosh muloqotni yakunladi")
+                                        delay(1500)
+                                        if (_callState.value is CallState.CallEnded) {
+                                            _callState.value = CallState.Idle
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    } else {
-                        // Re-register if server missed context
-                        missedPollCount++
-                        if (missedPollCount >= 2) {
-                            serverRepository.registerUser(user)
                         }
                     }
                 } catch (e: Exception) {
