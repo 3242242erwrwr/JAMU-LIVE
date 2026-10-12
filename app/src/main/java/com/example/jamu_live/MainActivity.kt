@@ -129,6 +129,7 @@ fun MainAppContent(viewModel: CallViewModel) {
                 is CallState.OutgoingCalling, is CallState.InCall, is CallState.CallEnded -> {
                     VideoCallScreen(
                         callState = state,
+                        currentUserId = user.id,
                         onToggleMute = { viewModel.toggleMute() },
                         onToggleCamera = { viewModel.toggleCamera() },
                         onSwitchCamera = { viewModel.switchCamera() },

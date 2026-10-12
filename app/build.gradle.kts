@@ -52,8 +52,9 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
 
-    // Networking
+    // Networking & Real-time Video Streaming (Agora)
     implementation(libs.okhttp)
+    implementation(libs.agora.rtc)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

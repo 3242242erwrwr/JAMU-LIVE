@@ -33,24 +33,33 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.jamu_live.agora.AgoraLocalVideoView
+import com.example.jamu_live.agora.AgoraManager
+import com.example.jamu_live.agora.AgoraRemoteVideoView
 import com.example.jamu_live.model.CallState
 import com.example.jamu_live.model.User
-import com.example.jamu_live.ui.components.CameraPreview
 import java.util.Locale
 
 @Composable
 fun VideoCallScreen(
     callState: CallState,
+    currentUserId: String,
     onToggleMute: () -> Unit,
     onToggleCamera: () -> Unit,
     onSwitchCamera: () -> Unit,
@@ -72,6 +81,7 @@ fun VideoCallScreen(
             is CallState.InCall -> {
                 ActiveVideoCallView(
                     inCallState = callState,
+                    currentUserId = currentUserId,
                     onToggleMute = onToggleMute,
                     onToggleCamera = onToggleCamera,
                     onSwitchCamera = onSwitchCamera,
@@ -182,70 +192,99 @@ fun OutgoingCallingView(
 @Composable
 fun ActiveVideoCallView(
     inCallState: CallState.InCall,
+    currentUserId: String,
     onToggleMute: () -> Unit,
     onToggleCamera: () -> Unit,
     onSwitchCamera: () -> Unit,
     onEndCall: () -> Unit
 ) {
+    val context = LocalContext.current
     val peer = inCallState.peerUser
+    var remoteUid by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(inCallState) {
+        val agora = AgoraManager.instance
+        agora.init(context, AgoraManager.AGORA_APP_ID)
+
+        agora.onUserJoinedCallback = { uid ->
+            remoteUid = uid
+        }
+        agora.onUserOfflineCallback = { _ ->
+            remoteUid = 0
+        }
+
+        val myUid = Math.abs(currentUserId.hashCode())
+        val channelName = "jamu_call_${minOf(currentUserId, peer.id)}_${maxOf(currentUserId, peer.id)}"
+        agora.joinChannel(channelName, myUid)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            AgoraManager.instance.leaveChannel()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Single Main Full Screen Camera Preview (Prevents CameraX Use-case Conflicts)
-        if (inCallState.isCameraOn) {
-            CameraPreview(
-                isFrontCamera = inCallState.isFrontCamera,
+        // Main Full Screen View -> Remote User's Real Live Video
+        if (remoteUid != 0) {
+            AgoraRemoteVideoView(
+                remoteUid = remoteUid,
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            // Placeholder view when camera is toggled off
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(Color(0xFF1A1A24), Color(0xFF0F0F14))
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        modifier = Modifier
-                            .size(130.dp)
-                            .background(Color(0xFF3F51B5), CircleShape)
-                            .border(4.dp, Color(0xFF6C63FF), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
+            // Local video view or placeholder while peer is connecting
+            if (inCallState.isCameraOn) {
+                AgoraLocalVideoView(modifier = Modifier.fillMaxSize())
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color(0xFF1A1A24), Color(0xFF0F0F14))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(130.dp)
+                                .background(Color(0xFF3F51B5), CircleShape)
+                                .border(4.dp, Color(0xFF6C63FF), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = peer.name.take(1).uppercase(),
+                                color = Color.White,
+                                fontSize = 50.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
                         Text(
-                            text = peer.name.take(1).uppercase(),
+                            text = peer.name,
                             color = Color.White,
-                            fontSize = 50.sp,
+                            fontSize = 24.sp,
                             fontWeight = FontWeight.Bold
                         )
-                    }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
-                    Text(
-                        text = peer.name,
-                        color = Color.White,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .background(Color(0xFF4CAF50).copy(alpha = 0.2f), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "Jonli Video Aloqa",
-                            color = Color(0xFF4CAF50),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFF4CAF50).copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "Kutilmoqda...",
+                                color = Color(0xFF4CAF50),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
             }
@@ -331,48 +370,40 @@ fun ActiveVideoCallView(
             }
         }
 
-        // Floating Peer Info Window
+        // Floating Picture-In-Picture (PiP) Window -> Local Camera
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 110.dp, end = 16.dp)
                 .size(width = 115.dp, height = 155.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .border(2.dp, Color(0xFF6C63FF), RoundedCornerShape(16.dp))
-                .background(Color(0xFF1E1E2C))
+                .border(2.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(16.dp))
+                .background(Color.Black)
         ) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
+            if (inCallState.isCameraOn) {
+                AgoraLocalVideoView(modifier = Modifier.fillMaxSize())
+            } else {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
-                        .background(Color(0xFF3F51B5), CircleShape),
+                        .fillMaxSize()
+                        .background(Color(0xFF1E1E2C)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = peer.name.take(1).uppercase(),
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Siz",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Kamera O'chiq",
+                            color = Color.Gray,
+                            fontSize = 10.sp
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = peer.name,
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Ulangan",
-                    color = Color(0xFF4CAF50),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium
-                )
             }
         }
 
@@ -393,7 +424,10 @@ fun ActiveVideoCallView(
             ) {
                 // Mute
                 IconButton(
-                    onClick = onToggleMute,
+                    onClick = {
+                        onToggleMute()
+                        AgoraManager.instance.toggleMute(inCallState.isMuted)
+                    },
                     modifier = Modifier
                         .size(50.dp)
                         .background(
@@ -410,7 +444,10 @@ fun ActiveVideoCallView(
 
                 // Camera Toggle
                 IconButton(
-                    onClick = onToggleCamera,
+                    onClick = {
+                        onToggleCamera()
+                        AgoraManager.instance.toggleCamera(!inCallState.isCameraOn)
+                    },
                     modifier = Modifier
                         .size(50.dp)
                         .background(
@@ -427,7 +464,10 @@ fun ActiveVideoCallView(
 
                 // Switch Camera
                 IconButton(
-                    onClick = onSwitchCamera,
+                    onClick = {
+                        onSwitchCamera()
+                        AgoraManager.instance.switchCamera()
+                    },
                     enabled = inCallState.isCameraOn,
                     modifier = Modifier
                         .size(50.dp)
@@ -445,7 +485,10 @@ fun ActiveVideoCallView(
 
                 // End Call
                 IconButton(
-                    onClick = onEndCall,
+                    onClick = {
+                        AgoraManager.instance.leaveChannel()
+                        onEndCall()
+                    },
                     modifier = Modifier
                         .size(56.dp)
                         .background(Color(0xFFF44336), CircleShape)
