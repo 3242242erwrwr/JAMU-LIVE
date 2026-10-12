@@ -8,6 +8,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -35,6 +35,9 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -191,138 +194,190 @@ fun ActiveVideoCallView(
     val peer = inCallState.peerUser
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Main Remote User Stream View
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(Color(0xFF1A1A24), Color(0xFF0F0F14))
-                    )
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(130.dp)
-                        .background(Color(0xFF3F51B5), CircleShape)
-                        .border(4.dp, Color(0xFF6C63FF), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = peer.name.take(1).uppercase(),
-                        color = Color.White,
-                        fontSize = 50.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = peer.name,
-                    color = Color.White,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Box(
-                    modifier = Modifier
-                        .background(Color(0xFF4CAF50).copy(alpha = 0.2f), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "Jonli Video Aloqa",
-                        color = Color(0xFF4CAF50),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
-        }
-
-        // Top Info Bar (Peer name & timer)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 40.dp, start = 20.dp, end = 20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = peer.name,
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = formatDuration(inCallState.callDurationSeconds),
-                    color = Color(0xFF4CAF50),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
+        // Main Full Screen View - Camera Preview when active
+        if (inCallState.isCameraOn) {
+            CameraPreview(
+                isFrontCamera = inCallState.isFrontCamera,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            // Placeholder when local camera is off
             Box(
                 modifier = Modifier
-                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = "HD 1080p",
-                    color = Color.LightGray,
-                    fontSize = 12.sp
-                )
-            }
-        }
-
-        // Floating Local Camera View (PiP)
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 90.dp, end = 16.dp)
-                .size(width = 120.dp, height = 170.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .border(2.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
-                .background(Color.DarkGray)
-        ) {
-            if (inCallState.isCameraOn) {
-                CameraPreview(
-                    isFrontCamera = inCallState.isFrontCamera,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color(0xFF222233)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Default.VideocamOff,
-                            contentDescription = null,
-                            tint = Color.Gray,
-                            modifier = Modifier.size(28.dp)
+                    .fillMaxSize()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(Color(0xFF1A1A24), Color(0xFF0F0F14))
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(130.dp)
+                            .background(Color(0xFF3F51B5), CircleShape)
+                            .border(4.dp, Color(0xFF6C63FF), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text(
-                            text = "Kamera O'chiq",
-                            color = Color.Gray,
-                            fontSize = 10.sp
+                            text = peer.name.take(1).uppercase(),
+                            color = Color.White,
+                            fontSize = 50.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = peer.name,
+                        color = Color.White,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .background(Color(0xFF4CAF50).copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Jonli Audio/Video Aloqa",
+                            color = Color(0xFF4CAF50),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
             }
         }
 
-        // Bottom Controls Bar
+        // Dark gradient overlays at top and bottom for controls visibility
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(140.dp)
+                .align(Alignment.TopCenter)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(Color.Black.copy(alpha = 0.7f), Color.Transparent)
+                    )
+                )
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(180.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                    )
+                )
+        )
+
+        // Top Bar (Peer Name, Timer & Live Badge)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 48.dp, start = 20.dp, end = 20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .background(Color(0xFF3F51B5), CircleShape)
+                        .border(2.dp, Color.White, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = peer.name.take(1).uppercase(),
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.size(10.dp))
+                Column {
+                    Text(
+                        text = peer.name,
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = formatDuration(inCallState.callDurationSeconds),
+                        color = Color(0xFF4CAF50),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .background(Color.Red.copy(alpha = 0.8f), CircleShape)
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = "LIVE",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        // PiP Floating Window (Peer Avatar / Live Indicator Box)
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 110.dp, end = 16.dp)
+                .size(width = 110.dp, height = 150.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .border(2.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(16.dp))
+                .background(Color(0xFF1E1E2C))
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(50.dp)
+                        .background(Color(0xFF6C63FF), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = peer.name.take(1).uppercase(),
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = peer.name,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = "Ulangan",
+                    color = Color(0xFF4CAF50),
+                    fontSize = 10.sp
+                )
+            }
+        }
+
+        // Bottom Action Controls Bar
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -332,7 +387,7 @@ fun ActiveVideoCallView(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF1E1E2C).copy(alpha = 0.9f), RoundedCornerShape(32.dp))
+                    .background(Color(0xFF1E1E2C).copy(alpha = 0.95f), RoundedCornerShape(32.dp))
                     .padding(vertical = 14.dp, horizontal = 20.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
