@@ -1,6 +1,10 @@
-// In-memory state for Vercel Serverless Function
-let users = {};
-let activeCalls = {};
+// In-memory global state across Vercel serverless invocations
+if (!global.users) {
+    global.users = {};
+}
+if (!global.activeCalls) {
+    global.activeCalls = {};
+}
 
 module.exports = (req, res) => {
     // Enable CORS for Android client requests
@@ -14,6 +18,8 @@ module.exports = (req, res) => {
 
     const { url, method } = req;
     const now = Date.now();
+    const users = global.users;
+    const activeCalls = global.activeCalls;
 
     // Clean inactive users (idle for > 30 seconds)
     Object.keys(users).forEach(id => {
@@ -27,8 +33,8 @@ module.exports = (req, res) => {
         try { body = JSON.parse(body); } catch (e) {}
     }
 
-    // 1. GET /api/users or GET /api/index
-    if (method === 'GET' && (url.includes('/users') || url === '/api' || url === '/api/index')) {
+    // 1. GET /api or /api/users or /api/index
+    if (method === 'GET' && (url.includes('/users') || !url.includes('/call'))) {
         return res.status(200).json({
             status: "ok",
             server: "JAMU-LIVE Vercel Signaling Server",
@@ -52,7 +58,7 @@ module.exports = (req, res) => {
         return res.status(200).json({ success: true, user: users[id] });
     }
 
-    // 3. POST /api/call - Start a call
+    // 3. POST /api/call/start - Start a call
     if (method === 'POST' && url.includes('/call/start')) {
         const { callerId, callerName, targetId, targetName } = body;
         if (!callerId || !targetId) {
@@ -68,7 +74,7 @@ module.exports = (req, res) => {
 
     // 4. GET /api/call/check?userId=... - Poll call status
     if (method === 'GET' && url.includes('/call/check')) {
-        const urlParams = new URLSearchParams(url.split('?')[1] || '');
+        const urlParams = new URLSearchParams(url.includes('?') ? url.split('?')[1] : '');
         const userId = urlParams.get('userId');
 
         if (!userId) {
