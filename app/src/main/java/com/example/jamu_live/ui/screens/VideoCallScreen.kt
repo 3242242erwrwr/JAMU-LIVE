@@ -8,7 +8,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,9 +34,6 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -194,14 +190,14 @@ fun ActiveVideoCallView(
     val peer = inCallState.peerUser
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Main Full Screen View - Camera Preview when active
+        // Main Full Screen Video Feed
         if (inCallState.isCameraOn) {
             CameraPreview(
                 isFrontCamera = inCallState.isFrontCamera,
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            // Placeholder when local camera is off
+            // Placeholder view when camera is toggled off
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -245,7 +241,7 @@ fun ActiveVideoCallView(
                             .padding(horizontal = 12.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = "Jonli Audio/Video Aloqa",
+                            text = "Jonli Video Aloqa",
                             color = Color(0xFF4CAF50),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
@@ -255,7 +251,7 @@ fun ActiveVideoCallView(
             }
         }
 
-        // Dark gradient overlays at top and bottom for controls visibility
+        // Top gradient overlay
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -268,6 +264,7 @@ fun ActiveVideoCallView(
                 )
         )
 
+        // Bottom gradient overlay
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -280,7 +277,7 @@ fun ActiveVideoCallView(
                 )
         )
 
-        // Top Bar (Peer Name, Timer & Live Badge)
+        // Top Header Info Bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -291,7 +288,7 @@ fun ActiveVideoCallView(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(44.dp)
                         .background(Color(0xFF3F51B5), CircleShape)
                         .border(2.dp, Color.White, CircleShape),
                     contentAlignment = Alignment.Center
@@ -322,7 +319,7 @@ fun ActiveVideoCallView(
 
             Box(
                 modifier = Modifier
-                    .background(Color.Red.copy(alpha = 0.8f), CircleShape)
+                    .background(Color.Red.copy(alpha = 0.85f), CircleShape)
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text(
@@ -334,50 +331,47 @@ fun ActiveVideoCallView(
             }
         }
 
-        // PiP Floating Window (Peer Avatar / Live Indicator Box)
+        // Floating Dual Camera Picture-In-Picture (PiP) Window
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 110.dp, end = 16.dp)
-                .size(width = 110.dp, height = 150.dp)
+                .size(width = 115.dp, height = 155.dp)
                 .clip(RoundedCornerShape(16.dp))
                 .border(2.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(16.dp))
-                .background(Color(0xFF1E1E2C))
+                .background(Color.Black)
         ) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
+            if (inCallState.isCameraOn) {
+                CameraPreview(
+                    isFrontCamera = !inCallState.isFrontCamera,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
                 Box(
                     modifier = Modifier
-                        .size(50.dp)
-                        .background(Color(0xFF6C63FF), CircleShape),
+                        .fillMaxSize()
+                        .background(Color(0xFF1E1E2C)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = peer.name.take(1).uppercase(),
-                        color = Color.White,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = peer.name,
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Ulangan",
+                            color = Color(0xFF4CAF50),
+                            fontSize = 10.sp
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = peer.name,
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text = "Ulangan",
-                    color = Color(0xFF4CAF50),
-                    fontSize = 10.sp
-                )
             }
         }
 
-        // Bottom Action Controls Bar
+        // Bottom Controls Action Bar
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)

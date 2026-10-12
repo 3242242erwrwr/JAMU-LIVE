@@ -5,6 +5,9 @@ if (!global.users) {
 if (!global.activeCalls) {
     global.activeCalls = {};
 }
+if (!global.webrtcSignals) {
+    global.webrtcSignals = {}; // userId -> array of signals
+}
 
 module.exports = (req, res) => {
     // Enable CORS for Android client requests
@@ -20,6 +23,7 @@ module.exports = (req, res) => {
     const now = Date.now();
     const users = global.users;
     const activeCalls = global.activeCalls;
+    const webrtcSignals = global.webrtcSignals;
 
     // Clean inactive users only after 1 hour
     Object.keys(users).forEach(id => {
@@ -34,10 +38,10 @@ module.exports = (req, res) => {
     }
 
     // 1. GET /api or /api/users
-    if (method === 'GET' && (url.includes('/users') || !url.includes('/call'))) {
+    if (method === 'GET' && (url.includes('/users') || (!url.includes('/call') && !url.includes('/webrtc')))) {
         return res.status(200).json({
             status: "ok",
-            server: "JAMU-LIVE Vercel Signaling Server",
+            server: "JAMU-LIVE Vercel WebRTC Signaling Server",
             users: Object.values(users)
         });
     }
@@ -81,16 +85,20 @@ module.exports = (req, res) => {
             return res.status(400).json({ error: "Missing userId param" });
         }
 
-        // Heartbeat / update last seen
+        // Heartbeat
         if (users[userId]) {
             users[userId].lastSeen = Date.now();
         }
 
         const currentCall = activeCalls[userId] || null;
+        const pendingSignals = webrtcSignals[userId] || [];
+        webrtcSignals[userId] = []; // Clear read signals
+
         return res.status(200).json({
             success: true,
             call: currentCall,
-            users: Object.values(users)
+            users: Object.values(users),
+            signals: pendingSignals
         });
     }
 
@@ -108,7 +116,6 @@ module.exports = (req, res) => {
                 activeCalls[userId].state = 'ended';
                 if (activeCalls[peerId]) activeCalls[peerId].state = 'ended';
 
-                // Delay cleanup
                 setTimeout(() => {
                     delete activeCalls[userId];
                     if (peerId) delete activeCalls[peerId];
@@ -117,6 +124,21 @@ module.exports = (req, res) => {
         }
 
         return res.status(200).json({ success: true, action });
+    }
+
+    // 6. POST /api/webrtc/signal - Relay SDP/ICE Candidates
+    if (method === 'POST' && url.includes('/webrtc/signal')) {
+        const { from, to, type, payload } = body;
+        if (!to || !type || !payload) {
+            return res.status(400).json({ error: "Missing to, type or payload" });
+        }
+
+        if (!webrtcSignals[to]) {
+            webrtcSignals[to] = [];
+        }
+        webrtcSignals[to].push({ from, type, payload });
+
+        return res.status(200).json({ success: true });
     }
 
     return res.status(200).json({
