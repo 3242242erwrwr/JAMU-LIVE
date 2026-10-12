@@ -190,7 +190,7 @@ fun ActiveVideoCallView(
     val peer = inCallState.peerUser
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Main Full Screen Video Feed
+        // Single Main Full Screen Camera Preview (Prevents CameraX Use-case Conflicts)
         if (inCallState.isCameraOn) {
             CameraPreview(
                 isFrontCamera = inCallState.isFrontCamera,
@@ -331,43 +331,48 @@ fun ActiveVideoCallView(
             }
         }
 
-        // Floating Dual Camera Picture-In-Picture (PiP) Window
+        // Floating Peer Info Window
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 110.dp, end = 16.dp)
                 .size(width = 115.dp, height = 155.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .border(2.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(16.dp))
-                .background(Color.Black)
+                .border(2.dp, Color(0xFF6C63FF), RoundedCornerShape(16.dp))
+                .background(Color(0xFF1E1E2C))
         ) {
-            if (inCallState.isCameraOn) {
-                CameraPreview(
-                    isFrontCamera = !inCallState.isFrontCamera,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color(0xFF1E1E2C)),
+                        .size(48.dp)
+                        .background(Color(0xFF3F51B5), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = peer.name,
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Ulangan",
-                            color = Color(0xFF4CAF50),
-                            fontSize = 10.sp
-                        )
-                    }
+                    Text(
+                        text = peer.name.take(1).uppercase(),
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = peer.name,
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Ulangan",
+                    color = Color(0xFF4CAF50),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
             }
         }
 
