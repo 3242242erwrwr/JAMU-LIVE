@@ -1,6 +1,7 @@
 package com.example.jamu_live
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -15,6 +16,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import com.example.jamu_live.model.CallState
 import com.example.jamu_live.ui.components.IncomingCallDialog
 import com.example.jamu_live.ui.screens.FriendsListScreen
@@ -41,36 +44,55 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainAppContent(viewModel: CallViewModel) {
+    val context = LocalContext.current
     val currentUser by viewModel.currentUser.collectAsState()
     val friends by viewModel.friendsList.collectAsState()
     val callState by viewModel.callState.collectAsState()
 
-    // Request permissions launcher
+    // Permission launcher for Camera and Audio
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val cameraGranted = permissions[Manifest.permission.CAMERA] ?: false
         val audioGranted = permissions[Manifest.permission.RECORD_AUDIO] ?: false
         if (cameraGranted && audioGranted) {
-            // Permissions granted
+            // Permissions granted successfully
         }
     }
 
-    LaunchedEffect(Unit) {
-        permissionLauncher.launch(
-            arrayOf(
-                Manifest.permission.CAMERA,
-                Manifest.permission.RECORD_AUDIO
+    fun requestPermissionsIfNeeded(): Boolean {
+        val cameraCheck = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+        val audioCheck = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+        val allGranted = cameraCheck == PackageManager.PERMISSION_GRANTED && audioCheck == PackageManager.PERMISSION_GRANTED
+
+        if (!allGranted) {
+            permissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.CAMERA,
+                    Manifest.permission.RECORD_AUDIO
+                )
             )
-        )
+        }
+        return allGranted
+    }
+
+    LaunchedEffect(Unit) {
+        requestPermissionsIfNeeded()
+    }
+
+    // Always check permissions when entering video call
+    LaunchedEffect(callState) {
+        if (callState is CallState.OutgoingCalling || callState is CallState.InCall) {
+            requestPermissionsIfNeeded()
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
         val user = currentUser
         if (user == null) {
-        LoginScreen { name ->
-            viewModel.login(name)
-        }
+            LoginScreen { name ->
+                viewModel.login(name)
+            }
         } else {
             when (val state = callState) {
                 is CallState.Idle, is CallState.IncomingCall -> {
@@ -78,6 +100,7 @@ fun MainAppContent(viewModel: CallViewModel) {
                         currentUser = user,
                         friends = friends,
                         onStartCall = { targetUser ->
+                            requestPermissionsIfNeeded()
                             viewModel.startCall(targetUser)
                         },
                         onSimulateIncomingCall = { friend ->
@@ -94,7 +117,10 @@ fun MainAppContent(viewModel: CallViewModel) {
                     if (state is CallState.IncomingCall) {
                         IncomingCallDialog(
                             caller = state.callerUser,
-                            onAccept = { viewModel.acceptCall() },
+                            onAccept = {
+                                requestPermissionsIfNeeded()
+                                viewModel.acceptCall()
+                            },
                             onDecline = { viewModel.declineCall() }
                         )
                     }
