@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.jamu_live.model.CallState
 import com.example.jamu_live.model.User
 import com.example.jamu_live.model.UserStatus
+import com.example.jamu_live.network.VercelServerRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,38 +21,49 @@ import java.util.UUID
 class CallViewModel(application: Application) : AndroidViewModel(application) {
 
     private val sharedPrefs = application.getSharedPreferences("jamu_live_prefs", Context.MODE_PRIVATE)
+    val serverRepository = VercelServerRepository()
 
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
-    private val _friendsList = MutableStateFlow<List<User>>(
-        listOf(
-            User(id = "1", name = "Sardor", status = UserStatus.ONLINE, avatarColorHex = "#4CAF50"),
-            User(id = "2", name = "Malika", status = UserStatus.ONLINE, avatarColorHex = "#E91E63"),
-            User(id = "3", name = "Aziz", status = UserStatus.ONLINE, avatarColorHex = "#2196F3"),
-            User(id = "4", name = "Lobar", status = UserStatus.OFFLINE, avatarColorHex = "#9C27B0"),
-            User(id = "5", name = "Jasur", status = UserStatus.ONLINE, avatarColorHex = "#FF9800")
-        )
-    )
+    private val _friendsList = MutableStateFlow<List<User>>(emptyList())
     val friendsList: StateFlow<List<User>> = _friendsList.asStateFlow()
 
     private val _callState = MutableStateFlow<CallState>(CallState.Idle)
     val callState: StateFlow<CallState> = _callState.asStateFlow()
 
+    private val _serverUrl = MutableStateFlow(
+        sharedPrefs.getString("server_url", "https://jamu-live.vercel.app") ?: "https://jamu-live.vercel.app"
+    )
+    val serverUrl: StateFlow<String> = _serverUrl.asStateFlow()
+
     private var timerJob: Job? = null
-    private var simulatedRingingJob: Job? = null
+    private var syncJob: Job? = null
 
     init {
+        serverRepository.baseUrl = _serverUrl.value
+
         // Load saved user name if previously logged in
         val savedName = sharedPrefs.getString("user_name", null)
         if (!savedName.isNullOrBlank()) {
             val savedId = sharedPrefs.getString("user_id", null) ?: UUID.randomUUID().toString()
-            _currentUser.value = User(
+            val user = User(
                 id = savedId,
                 name = savedName,
                 status = UserStatus.ONLINE,
                 avatarColorHex = "#3F51B5"
             )
+            _currentUser.value = user
+            startServerSync(user)
+        }
+    }
+
+    fun setServerUrl(url: String) {
+        val cleanUrl = url.trim().removeSuffix("/")
+        if (cleanUrl.isNotBlank()) {
+            _serverUrl.value = cleanUrl
+            serverRepository.baseUrl = cleanUrl
+            sharedPrefs.edit { putString("server_url", cleanUrl) }
         }
     }
 
@@ -72,10 +84,12 @@ class CallViewModel(application: Application) : AndroidViewModel(application) {
             avatarColorHex = "#3F51B5"
         )
         _currentUser.value = newUser
+        startServerSync(newUser)
     }
 
     fun logout() {
         endCall()
+        syncJob?.cancel()
         sharedPrefs.edit {
             remove("user_name")
             remove("user_id")
@@ -93,42 +107,101 @@ class CallViewModel(application: Application) : AndroidViewModel(application) {
             status = UserStatus.ONLINE,
             avatarColorHex = randomColor
         )
-        _friendsList.update { list -> list + newFriend }
+        _friendsList.update { list ->
+            if (list.none { it.id == newFriend.id }) list + newFriend else list
+        }
     }
 
-    fun startCall(targetUser: User) {
-        simulatedRingingJob?.cancel()
-        _callState.value = CallState.OutgoingCalling(targetUser)
+    private fun startServerSync(user: User) {
+        syncJob?.cancel()
+        syncJob = viewModelScope.launch {
+            // Initial registration
+            serverRepository.registerUser(user)
 
-        // Simulate friend answering after 3.5 seconds
-        simulatedRingingJob = viewModelScope.launch {
-            delay(3500)
-            if (_callState.value is CallState.OutgoingCalling) {
-                acceptInCall(targetUser)
+            while (true) {
+                try {
+                    val result = serverRepository.pollStatus(user.id)
+                    if (result != null) {
+                        // Filter out self from friends list
+                        val onlineFriends = result.onlineUsers.filter { it.id != user.id }
+                        _friendsList.value = onlineFriends
+
+                        // Handle server-side call signaling
+                        val callInfo = result.callInfo
+                        if (callInfo != null) {
+                            val peerUser = User(
+                                id = callInfo.peerId,
+                                name = callInfo.peerName,
+                                status = UserStatus.ONLINE
+                            )
+
+                            when (callInfo.state) {
+                                "incoming" -> {
+                                    if (_callState.value is CallState.Idle) {
+                                        _callState.value = CallState.IncomingCall(peerUser)
+                                    }
+                                }
+                                "incall" -> {
+                                    val current = _callState.value
+                                    if (current is CallState.OutgoingCalling || current is CallState.IncomingCall) {
+                                        _callState.value = CallState.InCall(peerUser = peerUser)
+                                        startCallTimer()
+                                    }
+                                }
+                            }
+                        } else {
+                            // If remote party hung up
+                            val currentState = _callState.value
+                            if (currentState is CallState.InCall || currentState is CallState.OutgoingCalling) {
+                                _callState.value = CallState.CallEnded("Suhbatdosh muloqotni yakunladi")
+                                delay(1500)
+                                if (_callState.value is CallState.CallEnded) {
+                                    _callState.value = CallState.Idle
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
+                delay(2000) // Poll Vercel server every 2 seconds
             }
         }
     }
 
+    fun startCall(targetUser: User) {
+        val user = _currentUser.value ?: return
+        _callState.value = CallState.OutgoingCalling(targetUser)
+
+        viewModelScope.launch {
+            serverRepository.startCall(user, targetUser)
+        }
+    }
+
     fun simulateIncomingCall(fromFriend: User) {
-        simulatedRingingJob?.cancel()
         _callState.value = CallState.IncomingCall(fromFriend)
     }
 
     fun acceptCall() {
         val currentState = _callState.value
+        val user = _currentUser.value ?: return
         if (currentState is CallState.IncomingCall) {
-            acceptInCall(currentState.callerUser)
+            viewModelScope.launch {
+                serverRepository.respondCall(user.id, "accept")
+                _callState.value = CallState.InCall(peerUser = currentState.callerUser)
+                startCallTimer()
+            }
         }
     }
 
-    private fun acceptInCall(peer: User) {
-        simulatedRingingJob?.cancel()
-        _callState.value = CallState.InCall(peerUser = peer)
-        startCallTimer()
-    }
-
     fun declineCall() {
-        simulatedRingingJob?.cancel()
+        val user = _currentUser.value
+        if (user != null) {
+            viewModelScope.launch {
+                serverRepository.respondCall(user.id, "decline")
+            }
+        }
         _callState.value = CallState.CallEnded("Qo'ng'iroq rad etildi")
         viewModelScope.launch {
             delay(1500)
@@ -139,7 +212,12 @@ class CallViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun endCall() {
-        simulatedRingingJob?.cancel()
+        val user = _currentUser.value
+        if (user != null) {
+            viewModelScope.launch {
+                serverRepository.respondCall(user.id, "end")
+            }
+        }
         timerJob?.cancel()
         timerJob = null
 

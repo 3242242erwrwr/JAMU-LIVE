@@ -1,0 +1,7 @@
+{
+  "name": "jamu-live-server",
+  "version": "1.0.0",
+  "description": "JAMU-LIVE Realtime Video Call Server for Vercel",
+  "main": "api/index.js",
+  "dependencies": {}
+}
