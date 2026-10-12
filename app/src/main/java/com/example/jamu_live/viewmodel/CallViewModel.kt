@@ -33,7 +33,7 @@ class CallViewModel(application: Application) : AndroidViewModel(application) {
     val callState: StateFlow<CallState> = _callState.asStateFlow()
 
     private val _serverUrl = MutableStateFlow(
-        sharedPrefs.getString("server_url", "https://jamu-live.vercel.app") ?: "https://jamu-live.vercel.app"
+        sharedPrefs.getString("server_url", "https://jamulive.vercel.app") ?: "https://jamulive.vercel.app"
     )
     val serverUrl: StateFlow<String> = _serverUrl.asStateFlow()
 

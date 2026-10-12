@@ -27,8 +27,8 @@ data class CallInfo(
 
 class VercelServerRepository {
 
-    // Default Vercel deployment URL (Can be updated to custom Vercel domain)
-    var baseUrl: String = "https://jamu-live.vercel.app"
+    // Default Vercel deployment URL
+    var baseUrl: String = "https://jamulive.vercel.app"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
