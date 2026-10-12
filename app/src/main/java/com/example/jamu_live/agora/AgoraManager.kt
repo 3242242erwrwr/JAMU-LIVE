@@ -29,6 +29,7 @@ class AgoraManager private constructor() {
             onUserJoinedCallback?.invoke(uid)
         }
 
+        @Deprecated("Deprecated in Java")
         override fun onFirstRemoteVideoDecoded(uid: Int, width: Int, height: Int, elapsed: Int) {
             remoteUid = uid
             onUserJoinedCallback?.invoke(uid)
@@ -70,18 +71,29 @@ class AgoraManager private constructor() {
 
     fun setupLocalVideo(context: Context, container: FrameLayout) {
         container.removeAllViews()
-        val surfaceView = SurfaceView(context)
-        surfaceView.setZOrderMediaOverlay(true)
+        val surfaceView = SurfaceView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            setZOrderMediaOverlay(true)
+        }
         container.addView(surfaceView)
 
-        rtcEngine?.setupLocalVideo(VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_HIDDEN, 0))
+        rtcEngine?.enableVideo()
         rtcEngine?.startPreview()
+        rtcEngine?.setupLocalVideo(VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_HIDDEN, 0))
     }
 
     fun setupRemoteVideo(context: Context, container: FrameLayout, uid: Int) {
         if (uid <= 0) return
         container.removeAllViews()
-        val surfaceView = SurfaceView(context)
+        val surfaceView = SurfaceView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        }
         container.addView(surfaceView)
 
         rtcEngine?.setupRemoteVideo(VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_HIDDEN, uid))
@@ -103,6 +115,11 @@ class AgoraManager private constructor() {
 
     fun toggleCamera(enabled: Boolean) {
         rtcEngine?.enableLocalVideo(enabled)
+        if (enabled) {
+            rtcEngine?.startPreview()
+        } else {
+            rtcEngine?.stopPreview()
+        }
     }
 
     fun toggleMute(muted: Boolean) {
