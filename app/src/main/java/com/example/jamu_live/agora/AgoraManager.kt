@@ -1,7 +1,7 @@
 package com.example.jamu_live.agora
 
 import android.content.Context
-import android.view.SurfaceView
+import android.view.TextureView
 import android.widget.FrameLayout
 import io.agora.rtc2.Constants
 import io.agora.rtc2.IRtcEngineEventHandler
@@ -71,32 +71,31 @@ class AgoraManager private constructor() {
 
     fun setupLocalVideo(context: Context, container: FrameLayout) {
         container.removeAllViews()
-        val surfaceView = SurfaceView(context).apply {
+        val textureView = TextureView(context).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
-            setZOrderMediaOverlay(true)
         }
-        container.addView(surfaceView)
+        container.addView(textureView)
 
         rtcEngine?.enableVideo()
         rtcEngine?.startPreview()
-        rtcEngine?.setupLocalVideo(VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_HIDDEN, 0))
+        rtcEngine?.setupLocalVideo(VideoCanvas(textureView, VideoCanvas.RENDER_MODE_HIDDEN, 0))
     }
 
     fun setupRemoteVideo(context: Context, container: FrameLayout, uid: Int) {
         if (uid <= 0) return
         container.removeAllViews()
-        val surfaceView = SurfaceView(context).apply {
+        val textureView = TextureView(context).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
         }
-        container.addView(surfaceView)
+        container.addView(textureView)
 
-        rtcEngine?.setupRemoteVideo(VideoCanvas(surfaceView, VideoCanvas.RENDER_MODE_HIDDEN, uid))
+        rtcEngine?.setupRemoteVideo(VideoCanvas(textureView, VideoCanvas.RENDER_MODE_HIDDEN, uid))
     }
 
     fun joinChannel(channelName: String, uid: Int) {
