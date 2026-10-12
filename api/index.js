@@ -1,4 +1,4 @@
-// In-memory global state across Vercel serverless invocations
+// Global persistent state across Vercel serverless invocations
 if (!global.users) {
     global.users = {};
 }
@@ -21,9 +21,9 @@ module.exports = (req, res) => {
     const users = global.users;
     const activeCalls = global.activeCalls;
 
-    // Clean inactive users (idle for > 30 seconds)
+    // Clean inactive users only after 30 minutes of complete inactivity
     Object.keys(users).forEach(id => {
-        if (now - users[id].lastSeen > 30000) {
+        if (now - users[id].lastSeen > 1800000) {
             delete users[id];
         }
     });
@@ -33,7 +33,7 @@ module.exports = (req, res) => {
         try { body = JSON.parse(body); } catch (e) {}
     }
 
-    // 1. GET /api or /api/users or /api/index
+    // 1. GET /api or /api/users
     if (method === 'GET' && (url.includes('/users') || !url.includes('/call'))) {
         return res.status(200).json({
             status: "ok",
@@ -81,7 +81,7 @@ module.exports = (req, res) => {
             return res.status(400).json({ error: "Missing userId param" });
         }
 
-        // Heartbeat
+        // Heartbeat / update last seen
         if (users[userId]) {
             users[userId].lastSeen = Date.now();
         }

@@ -23,10 +23,18 @@ class CallViewModel(application: Application) : AndroidViewModel(application) {
     private val sharedPrefs = application.getSharedPreferences("jamu_live_prefs", Context.MODE_PRIVATE)
     val serverRepository = VercelServerRepository()
 
+    private val defaultFriends = listOf(
+        User(id = "1", name = "Sardor", status = UserStatus.ONLINE, avatarColorHex = "#4CAF50"),
+        User(id = "2", name = "Malika", status = UserStatus.ONLINE, avatarColorHex = "#E91E63"),
+        User(id = "3", name = "Aziz", status = UserStatus.ONLINE, avatarColorHex = "#2196F3"),
+        User(id = "4", name = "Lobar", status = UserStatus.OFFLINE, avatarColorHex = "#9C27B0"),
+        User(id = "5", name = "Jasur", status = UserStatus.ONLINE, avatarColorHex = "#FF9800")
+    )
+
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
-    private val _friendsList = MutableStateFlow<List<User>>(emptyList())
+    private val _friendsList = MutableStateFlow<List<User>>(defaultFriends)
     val friendsList: StateFlow<List<User>> = _friendsList.asStateFlow()
 
     private val _callState = MutableStateFlow<CallState>(CallState.Idle)
@@ -39,6 +47,7 @@ class CallViewModel(application: Application) : AndroidViewModel(application) {
 
     private var timerJob: Job? = null
     private var syncJob: Job? = null
+    private var missedPollCount = 0
 
     init {
         serverRepository.baseUrl = _serverUrl.value
@@ -122,9 +131,17 @@ class CallViewModel(application: Application) : AndroidViewModel(application) {
                 try {
                     val result = serverRepository.pollStatus(user.id)
                     if (result != null) {
-                        // Filter out self from friends list
+                        missedPollCount = 0
+
+                        // Merge online friends with current friends list so list is persistent
                         val onlineFriends = result.onlineUsers.filter { it.id != user.id }
-                        _friendsList.value = onlineFriends
+                        _friendsList.update { currentList ->
+                            val mergedMap = currentList.associateBy { it.id }.toMutableMap()
+                            onlineFriends.forEach { online ->
+                                mergedMap[online.id] = online
+                            }
+                            mergedMap.values.toList()
+                        }
 
                         // Handle server-side call signaling
                         val callInfo = result.callInfo
@@ -150,7 +167,7 @@ class CallViewModel(application: Application) : AndroidViewModel(application) {
                                 }
                             }
                         } else {
-                            // If remote party hung up
+                            // Only end call if peer explicitly ended it
                             val currentState = _callState.value
                             if (currentState is CallState.InCall || currentState is CallState.OutgoingCalling) {
                                 _callState.value = CallState.CallEnded("Suhbatdosh muloqotni yakunladi")
@@ -159,6 +176,12 @@ class CallViewModel(application: Application) : AndroidViewModel(application) {
                                     _callState.value = CallState.Idle
                                 }
                             }
+                        }
+                    } else {
+                        // Re-register if server missed context
+                        missedPollCount++
+                        if (missedPollCount >= 2) {
+                            serverRepository.registerUser(user)
                         }
                     }
                 } catch (e: Exception) {
